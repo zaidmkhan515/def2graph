@@ -126,6 +126,45 @@ def test_fixture():
     print(f"   fixture out: {out}")
 
 
+# ------------------------------------------------- gzip / routing / MMMC corner
+def test_new_features():
+    print("\n[TEST 2] gzip input, routing-skip, one-corner selection")
+    import gzip
+    from def2graph.defparse import parse_def
+    from def2graph.libparse import library_key, select_one_corner
+
+    # gzip: a gzipped DEF parses identically to the plain one
+    plain = parse_def(os.path.join(FIX, "tiny.def"))
+    gzpath = os.path.join(tempfile.mkdtemp(), "tiny.def.gz")
+    with open(os.path.join(FIX, "tiny.def"), "rb") as fin, gzip.open(gzpath, "wb") as fout:
+        fout.write(fin.read())
+    gz = parse_def(gzpath)
+    check(len(gz.components) == len(plain.components) == 6, "gzip DEF parses same components")
+    check(len(gz.nets) == len(plain.nets) and len(gz.ports) == len(plain.ports),
+          "gzip DEF parses same nets/ports")
+
+    # routing-skip: a net with inline + ROUTED geometry keeps connectivity, drops wires
+    routed = ("VERSION 5.8 ;\nDESIGN r ;\nUNITS DISTANCE MICRONS 1000 ;\n"
+              "NETS 1 ;\n- n1 ( u_a Y ) ( u_b A ) + USE SIGNAL + ROUTED met1 "
+              "( 100 200 ) ( 300 * ) NEW met2 ( 300 200 ) ( * 400 ) ;\nEND NETS\n"
+              "END DESIGN\n")
+    rpath = os.path.join(tempfile.mkdtemp(), "routed.def")
+    with open(rpath, "w") as fh:
+        fh.write(routed)
+    rd = parse_def(rpath)
+    net = rd.nets.get("n1")
+    check(net is not None and sorted(net.conns) == [("u_a", "Y"), ("u_b", "A")],
+          "routing-skip keeps net connectivity, ignores wire coords")
+
+    # one-corner: MMMC corners collapse by library; distinct libs kept
+    libs = ["sky130_fd_sc_hd__tt_025C_1v80.lib", "sky130_fd_sc_hd__ss_100C_1v60.lib",
+            "sky130_fd_sc_hd__ff_n40C_1v95.lib", "Nangate45_lvt.lib", "sram.lib.gz"]
+    chosen, groups = select_one_corner(libs)
+    check(library_key(libs[0]) == "sky130_fd_sc_hd", "library_key strips corner")
+    check(len(chosen) == 3, "one-corner collapses 3 sky130 corners, keeps lvt + sram")
+    check(any("tt" in os.path.basename(c) for c in chosen), "one-corner prefers tt corner")
+
+
 # ---------------------------------------------------------------- real designs
 def test_real(name, def_path, lef_paths, lib_paths, expect_memory=False):
     print(f"\n[TEST] real design: {name}")
@@ -184,6 +223,7 @@ def test_parse_smoke(name, lef_paths, lib_paths, want_flop=False, want_mem=False
 
 def main():
     test_fixture()
+    test_new_features()
 
     # picorv32 - sky130 (LibreLane/OpenROAD), real hardened design
     test_real(

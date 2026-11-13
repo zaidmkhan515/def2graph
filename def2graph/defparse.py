@@ -61,16 +61,26 @@ _PLACE_RE = re.compile(r"\b(PLACED|FIXED|COVER)\b\s*\(\s*(-?\d+)\s+(-?\d+)\s*\)\
 _SECTIONS = ("COMPONENTS", "PINS", "NETS", "SPECIALNETS")
 
 
+# Start of a net's physical wiring ( + ROUTED / + FIXED / + COVER ). Everything
+# from here to the ';' is routing geometry we do not read.
+_ROUTING_RE = re.compile(r"\+\s*(?:ROUTED|FIXED|COVER)\b", re.I)
+
+
 def parse_def(path: str) -> DefData:
+    """Stream a DEF line by line (gzip-aware). Net routing geometry is skipped;
+    only connectivity (instance/pin tuples) and USE are read from NETS."""
+    from .ioutil import read_lines
     data = DefData()
-    from .ioutil import read_text
-    lines = read_text(path).splitlines()
 
     section: Optional[str] = None
     buf: List[str] = []
+    skip_routing = False   # inside a NET entry, past its connectivity
 
-    def flush_entry(text: str) -> None:
-        text = text.strip()
+    def flush_entry() -> None:
+        if not buf:
+            return
+        text = " ".join(buf).strip()
+        buf.clear()
         if not text.startswith("-"):
             return
         if section == "COMPONENTS":
@@ -79,16 +89,15 @@ def parse_def(path: str) -> DefData:
             _parse_pin(text, data)
         elif section == "NETS":
             _parse_net(text, data)
-        # SPECIALNETS ignored
+        # SPECIALNETS ignored entirely
 
-    for raw in lines:
-        line = raw.split("#", 1)[0]
-        stripped = line.strip()
+    for raw in read_lines(path):
+        stripped = raw.split("#", 1)[0].strip()
         if not stripped:
             continue
-        head = stripped.split()
 
         if section is None:
+            head = stripped.split()
             kw = head[0].upper()
             if kw == "DESIGN":
                 data.design = head[1].rstrip(";") if len(head) > 1 else None
@@ -98,39 +107,56 @@ def parse_def(path: str) -> DefData:
                 except ValueError:
                     pass
             elif kw == "DIEAREA":
-                # DIEAREA ( x y ) ( x y ) ... -> flatten all integer coords
                 nums = re.findall(r"-?\d+", stripped)
                 if len(nums) >= 4:
                     data.diearea = [(int(nums[k]), int(nums[k + 1]))
                                     for k in range(0, len(nums) - 1, 2)]
             elif kw in _SECTIONS:
                 section = kw
-                buf = []
+                buf.clear()
+                skip_routing = False
             continue
 
-        # inside a section
-        if stripped.upper().startswith("END " + section) or stripped.upper() == "END " + section:
-            # process any trailing buffered entry first
-            if buf:
-                flush_entry(" ".join(buf))
-                buf = []
+        # ---- inside a section ----
+        upper = stripped.upper()
+        if upper.startswith("END " + section):
+            flush_entry()
             section = None
-            continue
-        # the section header line itself (e.g. "COMPONENTS 734 ;")
-        if not stripped.startswith("-") and not buf:
+            skip_routing = False
             continue
 
+        # SPECIALNETS: power/ground routing, not used -> skip without buffering
+        if section == "SPECIALNETS":
+            continue
+
+        if section == "NETS":
+            if skip_routing:
+                if ";" in stripped:      # entry ends -> ready for the next one
+                    skip_routing = False
+                continue
+            if stripped.startswith("-") and buf:
+                flush_entry()            # previous entry had no routing/terminator
+            m = _ROUTING_RE.search(stripped)
+            if m:
+                buf.append(stripped[:m.start()])
+                flush_entry()            # connectivity + USE are complete here
+                if ";" not in stripped[m.start():]:
+                    skip_routing = True   # swallow the rest of the routing
+                continue
+            # connectivity line (may wrap across several lines before the first '+')
+            if not stripped.startswith("-") and not buf:
+                continue                 # section header line, e.g. "NETS 7680 ;"
+            buf.append(stripped)
+            if ";" in stripped:
+                flush_entry()
+            continue
+
+        # ---- COMPONENTS / PINS ----
+        if not stripped.startswith("-") and not buf:
+            continue                     # section header line
         buf.append(stripped)
-        # an entry terminates at ';'
         if ";" in stripped:
-            joined = " ".join(buf)
-            # handle possibility of trailing content after ';' (rare) by splitting
-            entry, _, remainder = joined.partition(";")
-            flush_entry(entry)
-            buf = []
-            rem = remainder.strip()
-            if rem.startswith("-"):
-                buf.append(rem)
+            flush_entry()
 
     return data
 

@@ -5,7 +5,7 @@ import time
 from typing import List, Optional
 
 from .lefparse import parse_lefs
-from .libparse import parse_liberties
+from .libparse import parse_liberties, select_one_corner
 from .defparse import parse_def
 from .model import CellLibrary
 from .conegraph import ConeGraph
@@ -20,6 +20,7 @@ def build_from_files(def_path: str,
                      outdir: str = "out",
                      formats: Optional[List[str]] = None,
                      include_subgraph_json: bool = True,
+                     one_corner: bool = True,
                      verbose: bool = True):
     formats = formats or DEFAULT_FORMATS
     lef_paths = lef_paths or []
@@ -39,6 +40,20 @@ def build_from_files(def_path: str,
     for w in lef.warnings:
         say(f"      WARN: {w}")
     say(f"      macros: {len(lef.macros)}  (dbu/micron={lef.dbu_microns})")
+
+    # One corner per library: drop redundant MMMC corners before parsing.
+    if one_corner and len(lib_paths) > 1:
+        chosen, groups = select_one_corner(lib_paths)
+        dropped = len(lib_paths) - len(chosen)
+        if dropped:
+            say(f"      MMMC: {len(lib_paths)} lib files -> {len(chosen)} "
+                f"library/ies (one corner each, {dropped} extra corner(s) skipped)")
+            for k in groups:
+                if len(groups[k]) > 1:
+                    pick = next(c for c in chosen if c in groups[k])
+                    say(f"        {k}: using {os.path.basename(pick)} "
+                        f"(of {len(groups[k])} corners)")
+        lib_paths = chosen
 
     say(f"[2/5] Parsing {len(lib_paths)} Liberty file(s) ...")
     lib_raw = parse_liberties(lib_paths)

@@ -64,19 +64,23 @@ def main(argv=None) -> int:
     ap.add_argument("--formats", nargs="+", default=DEFAULT_FORMATS,
                     choices=["parquet", "gpickle", "graphml", "pyg", "json"],
                     help="export formats")
+    ap.add_argument("--all-corners", action="store_true",
+                    help="parse every Liberty file given; default reads only one "
+                         "corner per library (MMMC corners dedupe by cell)")
     ap.add_argument("--no-subgraph-json", action="store_true",
                     help="omit full node/edge lists from cones.json (summary only)")
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args(argv)
 
-    lefs = _expand(args.lef, (".lef",))
-    libs = _expand(args.lib, (".lib",))
+    lefs = _expand(args.lef, (".lef", ".lef.gz"))
+    libs = _expand(args.lib, (".lib", ".lib.gz"))
 
     try:
         _, summary = build_from_files(
             def_path=args.def_path, lef_paths=lefs, lib_paths=libs,
             outdir=args.out, formats=args.formats,
             include_subgraph_json=not args.no_subgraph_json,
+            one_corner=not args.all_corners,
             verbose=not args.quiet)
     except FileNotFoundError as e:
         print(f"error: {e}", file=sys.stderr)

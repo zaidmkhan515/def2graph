@@ -236,3 +236,58 @@ def parse_liberties(paths) -> LibData:
         except Exception as e:  # malformed file shouldn't abort the whole run
             data.warnings.append(f"Liberty parse error, skipped: {p} ({e})")
     return data
+
+
+# ---- MMMC corner selection -------------------------------------------------
+# A corner-ish filename token: process (ss/tt/ff/..), speed word, temperature
+# (25c, n40c, m40c, 125c), or voltage (1v80, 0v90).
+_CORNER_TOKEN = re.compile(
+    r"^(?:ss|tt|ff|fs|sf|ssg|ffg|ttg|slow|fast|typ|typical|nom|nominal|min|max|"
+    r"wc|bc|wcl|lt|worst|best|cworst|cbest|rcworst|rcbest|[nmp]?\d+c|\d+v\d+|"
+    r"\d+p\d+|0v\d+|1v\d+)$", re.I)
+
+
+def library_key(path: str) -> str:
+    """Heuristic library identity for a .lib path, ignoring the PVT corner.
+
+    `sky130_fd_sc_hd__ss_100C_1v60.lib` -> `sky130_fd_sc_hd`
+    `Nangate45_slow.lib`                -> `Nangate45`
+    `Nangate45_lvt.lib`                 -> `Nangate45_lvt` (distinct library kept)
+    """
+    base = os.path.basename(path)
+    for ext in (".lib.gz", ".lib", ".gz"):
+        if base.lower().endswith(ext):
+            base = base[: -len(ext)]
+            break
+    if "__" in base:                      # <libname>__<corner>  (sky130, macros)
+        return base.split("__", 1)[0]
+    parts = re.split(r"[_.]", base)       # strip trailing corner tokens
+    while len(parts) > 1 and _CORNER_TOKEN.match(parts[-1]):
+        parts.pop()
+    return "_".join(parts)
+
+
+def _prefer_typical(group):
+    for pref in ("__tt", "_tt_", "typ", "_nom", "025c", "_25c"):
+        for p in group:
+            if pref in os.path.basename(p).lower():
+                return p
+    return group[0]
+
+
+def select_one_corner(paths):
+    """Keep one file per library (dedupe MMMC corners by `library_key`).
+
+    Returns (chosen_paths, groups) where groups maps library_key -> all paths.
+    A typical/tt corner is preferred when present, else the first seen.
+    """
+    groups = {}
+    order = []
+    for p in paths:
+        k = library_key(p)
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(p)
+    chosen = [_prefer_typical(groups[k]) for k in order]
+    return chosen, groups

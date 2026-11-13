@@ -42,30 +42,18 @@ class LefData:
         self.warnings: List[str] = []            # files skipped / failed to parse
 
 
-_DBU_RE = re.compile(r"DATABASE\s+MICRONS\s+([0-9.]+)")
-_MFG_RE = re.compile(r"MANUFACTURINGGRID\s+([0-9.]+)")
-
-
 def parse_lef(path: str, data: Optional[LefData] = None) -> LefData:
-    """Parse one LEF file, merging into `data` if provided (for multi-LEF PDKs)."""
+    """Parse one LEF file line by line (gzip-aware), merging into `data`."""
     if data is None:
         data = LefData()
 
-    from .ioutil import read_text
-    text = read_text(path)
-
-    m = _DBU_RE.search(text)
-    if m and data.dbu_microns is None:
-        data.dbu_microns = int(float(m.group(1)))
-    m = _MFG_RE.search(text)
-    if m and data.manufacturing_grid is None:
-        data.manufacturing_grid = float(m.group(1))
+    from .ioutil import read_lines
 
     macro: Optional[LefMacro] = None
     pin: Optional[LefPin] = None
     skip_depth = 0  # inside PORT / OBS geometry block(s)
 
-    for raw in text.splitlines():
+    for raw in read_lines(path):
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
@@ -78,6 +66,22 @@ def parse_lef(path: str, data: Optional[LefData] = None) -> LefData:
                 skip_depth += 1
             elif kw == "END":
                 skip_depth -= 1
+            continue
+
+        # Technology header (appears before any MACRO).
+        if kw == "DATABASE" and len(toks) >= 3 and toks[1].upper() == "MICRONS":
+            if data.dbu_microns is None:
+                try:
+                    data.dbu_microns = int(float(toks[2].rstrip(";")))
+                except ValueError:
+                    pass
+            continue
+        if kw == "MANUFACTURINGGRID" and len(toks) >= 2:
+            if data.manufacturing_grid is None:
+                try:
+                    data.manufacturing_grid = float(toks[1].rstrip(";"))
+                except ValueError:
+                    pass
             continue
 
         if kw == "MACRO":

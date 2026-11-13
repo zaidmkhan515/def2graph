@@ -47,11 +47,22 @@ expanded), `--lib 'libs/**/*.lib'` (quoted, tool-expanded), `--lib libs/mmmc`
 python -m def2graph --def design.def --lef libs/lef --lib libs/mmmc --out out/design
 ```
 
-MMMC dirs hold the **same cells at many corners** (ss/tt/ff, V, T). This tool
-only reads **corner-invariant** structure (is-flop, is-memory, pin direction,
-area), so all corners **dedupe by cell name** — loading the whole dir is safe,
-just redundant parsing. One corner is enough. Multiple libs also matter for PDKs
-that split sequential cells / memories into separate files (ASAP7).
+**gzip** — DEF/LEF/Liberty inputs may be gzip-compressed (`*.def.gz`,
+`*.lef.gz`, `*.lib.gz`); detection is by content, so a `.gz` extension is
+optional for reading, and directory/glob discovery finds `.lib.gz`/`.lef.gz` too.
+
+**MMMC / one corner per library** — a corner dir holds the **same cells at many
+corners** (ss/tt/ff, V, T), but this tool only reads **corner-invariant**
+structure (is-flop, is-memory, pin direction, area). By **default it parses just
+one corner per library** (grouped by filename, preferring a typical/tt corner) —
+so pointing at a full MMMC dir is fast, not redundant. Distinct libraries (e.g.
+`*_lvt`, SRAM macros) are kept. Pass `--all-corners` to parse every file.
+Multiple libs also matter for PDKs that split sequential cells / memories into
+separate files (ASAP7).
+
+**Streaming** — DEF and LEF are read line by line (never held fully in memory),
+and DEF **net routing geometry is skipped** (only connectivity + `USE` are read),
+so large routed DEFs parse with low memory and no change to the graph.
 
 Python API:
 
