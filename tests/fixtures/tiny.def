@@ -1,0 +1,33 @@
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ;
+DESIGN tiny ;
+UNITS DISTANCE MICRONS 1000 ;
+DIEAREA ( 0 0 ) ( 20000 20000 ) ;
+COMPONENTS 6 ;
+    - u_and AND2 + PLACED ( 1000 1000 ) N ;
+    - u_inv INV + PLACED ( 2000 1000 ) N ;
+    - u_ff DFF + PLACED ( 3000 1000 ) FS ;
+    - u_inv2 INV + PLACED ( 4000 1000 ) N ;
+    - u_ram RAM8 + PLACED ( 6000 6000 ) N ;
+    - u_inv3 INV + PLACED ( 8000 1000 ) N ;
+END COMPONENTS
+PINS 5 ;
+    - in0 + NET in0 + DIRECTION INPUT + USE SIGNAL + LAYER metal2 ( 0 0 ) ( 100 100 ) + PLACED ( 0 1000 ) N ;
+    - in1 + NET in1 + DIRECTION INPUT + USE SIGNAL + PLACED ( 0 2000 ) N ;
+    - clk + NET clk + DIRECTION INPUT + USE SIGNAL + PLACED ( 0 3000 ) N ;
+    - out0 + NET out0 + DIRECTION OUTPUT + USE SIGNAL + PLACED ( 10000 1000 ) N ;
+    - out1 + NET out1 + DIRECTION OUTPUT + USE SIGNAL + PLACED ( 10000 2000 ) N ;
+END PINS
+NETS 9 ;
+    - in0 ( PIN in0 ) ( u_and A ) ;
+    - in1 ( PIN in1 ) ( u_and B ) ( u_ram WD ) ;
+    - clk ( PIN clk ) ( u_ff CK ) ( u_ram CLK ) + USE CLOCK ;
+    - n1 ( u_and Y ) ( u_inv A ) ( u_ram ADDR ) ;
+    - n2 ( u_inv Y ) ( u_ff D ) ;
+    - n3 ( u_ff Q ) ( u_inv2 A ) ;
+    - out0 ( u_inv2 Y ) ( PIN out0 ) ;
+    - n4 ( u_ram RD ) ( u_inv3 A ) ;
+    - out1 ( u_inv3 Y ) ( PIN out1 ) ;
+END NETS
+END DESIGN

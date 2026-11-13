@@ -1,0 +1,47 @@
+library (tiny) {
+  time_unit : "1ns";
+  voltage_unit : "1V";
+  capacitive_load_unit (1.0, pf);
+  default_max_transition : 1.0;
+
+  cell (INV) {
+    area : 1.0;
+    pin (A) { direction : input; capacitance : 0.0020; }
+    pin (Y) {
+      direction : output;
+      function : "(!A)";
+      timing () { related_pin : "A"; timing_sense : negative_unate; }
+    }
+  }
+
+  cell (AND2) {
+    area : 1.5;
+    pin (A) { direction : input; capacitance : 0.0021; }
+    pin (B) { direction : input; capacitance : 0.0021; }
+    pin (Y) { direction : output; function : "(A&B)"; }
+  }
+
+  cell (DFF) {
+    area : 4.0;
+    ff (IQ, IQN) {
+      clocked_on : "CK";
+      next_state : "D";
+    }
+    pin (D)  { direction : input; capacitance : 0.0030; }
+    pin (CK) { direction : input; clock : true; capacitance : 0.0040; }
+    pin (Q)  { direction : output; function : "IQ"; }
+  }
+
+  cell (RAM8) {
+    area : 50.0;
+    memory () {
+      type : ram;
+      address_width : 3;
+      word_width : 8;
+    }
+    pin (CLK)  { direction : input; clock : true; }
+    pin (ADDR) { direction : input; }
+    pin (WD)   { direction : input; }
+    pin (RD)   { direction : output; }
+  }
+}

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Generated graph outputs
+out/
+*.gpickle
+*.graphml
+*.parquet
+*.pt
+
+# but keep test fixtures (inputs, not generated)
+!tests/fixtures/**
+
+# OS
+.DS_Store
