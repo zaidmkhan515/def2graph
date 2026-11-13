@@ -9,17 +9,42 @@ Example:
 from __future__ import annotations
 import argparse
 import glob
+import os
 import sys
-from typing import List
+from typing import List, Tuple
 
 from .build import build_from_files, DEFAULT_FORMATS
 
 
-def _expand(paths: List[str]) -> List[str]:
+def _expand(paths: List[str], exts: Tuple[str, ...]) -> List[str]:
+    """Resolve each arg into concrete files.
+
+    Accepts: a single file, a glob (``*``/``**`` recursive), or a DIRECTORY
+    (collected recursively by extension). Dir support makes an MMMC lib dir
+    like ``libs/mmmc/`` work directly: ``--lib libs/mmmc``. De-duplicated,
+    order-stable.
+    """
     out: List[str] = []
+    seen = set()
+
+    def add(f: str) -> None:
+        f = os.path.normpath(f)
+        if f not in seen:
+            seen.add(f)
+            out.append(f)
+
     for p in paths or []:
-        g = glob.glob(p)
-        out.extend(g if g else [p])
+        if os.path.isdir(p):
+            for ext in exts:
+                for f in sorted(glob.glob(os.path.join(p, "**", "*" + ext),
+                                          recursive=True)):
+                    add(f)
+        elif any(c in p for c in "*?["):
+            matches = sorted(glob.glob(p, recursive=True))
+            for f in (matches or [p]):
+                add(f)
+        else:
+            add(p)
     return out
 
 
@@ -29,9 +54,10 @@ def main(argv=None) -> int:
         description="Convert DEF/LEF/Liberty into a port-bounded logic-cone graph.")
     ap.add_argument("--def", dest="def_path", required=True, help="DEF file")
     ap.add_argument("--lef", dest="lef", action="append", default=[],
-                    help="LEF file (repeatable; globs ok)")
+                    help="LEF file, glob, or directory (repeatable; recursive)")
     ap.add_argument("--lib", dest="lib", action="append", default=[],
-                    help="Liberty file (repeatable; globs ok)")
+                    help="Liberty file, glob, or directory, e.g. libs/mmmc "
+                         "(repeatable; recursive; MMMC corners dedupe by cell)")
     ap.add_argument("--out", dest="out", default="out", help="output directory")
     ap.add_argument("--formats", nargs="+", default=DEFAULT_FORMATS,
                     choices=["parquet", "gpickle", "graphml", "pyg", "json"],
@@ -41,8 +67,8 @@ def main(argv=None) -> int:
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args(argv)
 
-    lefs = _expand(args.lef)
-    libs = _expand(args.lib)
+    lefs = _expand(args.lef, (".lef",))
+    libs = _expand(args.lib, (".lib",))
 
     try:
         _, summary = build_from_files(

@@ -37,9 +37,19 @@ python -m def2graph \
   --formats parquet gpickle graphml pyg json
 ```
 
-`--lef`/`--lib` are repeatable and accept globs (e.g. `--lib 'pdk/lib/*.lib'`).
-Multiple libs matter for PDKs that split sequential cells / memories into
-separate files (ASAP7).
+`--lef`/`--lib` are repeatable and accept a **file, a glob (`*`/`**`
+recursive), or a directory** (collected recursively). So a multi-corner MMMC
+lib dir works directly:
+
+```bash
+python -m def2graph --def design.def --lef libs/lef --lib libs/mmmc --out out/design
+```
+
+MMMC dirs hold the **same cells at many corners** (ss/tt/ff, V, T). This tool
+only reads **corner-invariant** structure (is-flop, is-memory, pin direction,
+area), so all corners **dedupe by cell name** — loading the whole dir is safe,
+just redundant parsing. One corner is enough. Multiple libs also matter for PDKs
+that split sequential cells / memories into separate files (ASAP7).
 
 Python API:
 
