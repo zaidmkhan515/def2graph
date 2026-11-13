@@ -79,8 +79,8 @@ def parse_liberty(path: str, data: Optional[LibData] = None) -> LibData:
     if data is None:
         data = LibData()
 
-    with open(path, "r", errors="replace") as fh:
-        toks = _tokenize(fh.read())
+    from .ioutil import read_text
+    toks = _tokenize(read_text(path))
 
     n = len(toks)
     i = 0

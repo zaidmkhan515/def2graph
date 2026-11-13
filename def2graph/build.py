@@ -60,6 +60,13 @@ def build_from_files(def_path: str,
     say(f"      design={defd.design} dbu={defd.dbu_microns} "
         f"components={len(defd.components)} ports={len(defd.ports)} "
         f"nets={len(defd.nets)}")
+    def_warnings: List[str] = []
+    if not defd.components and not defd.nets:
+        def_warnings.append(
+            f"DEF yielded 0 components and 0 nets: {def_path} -- the file may be "
+            f"empty, a floorplan-only DEF, a non-DEF file, or in an unexpected "
+            f"format. Share the first ~30 lines so the parser can be extended.")
+        say(f"      WARN: {def_warnings[-1]}")
 
     cg = ConeGraph.from_def(defd, celllib, dbu=defd.dbu_microns)
     cg.trace_all_ports()
@@ -67,7 +74,7 @@ def build_from_files(def_path: str,
         say(f"      WARN: {w}")
     # file-level parse warnings were already printed above; prepend them so they
     # also appear in the exported summary.json
-    cg.warnings = lef.warnings + lib_raw.warnings + cg.warnings
+    cg.warnings = lef.warnings + lib_raw.warnings + def_warnings + cg.warnings
 
     say(f"[5/5] Exporting -> {outdir}  formats={formats}")
     n_warn_before = len(cg.warnings)

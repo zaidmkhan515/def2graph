@@ -63,8 +63,8 @@ _SECTIONS = ("COMPONENTS", "PINS", "NETS", "SPECIALNETS")
 
 def parse_def(path: str) -> DefData:
     data = DefData()
-    with open(path, "r", errors="replace") as fh:
-        lines = fh.readlines()
+    from .ioutil import read_text
+    lines = read_text(path).splitlines()
 
     section: Optional[str] = None
     buf: List[str] = []

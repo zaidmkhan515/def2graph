@@ -51,8 +51,8 @@ def parse_lef(path: str, data: Optional[LefData] = None) -> LefData:
     if data is None:
         data = LefData()
 
-    with open(path, "r", errors="replace") as fh:
-        text = fh.read()
+    from .ioutil import read_text
+    text = read_text(path)
 
     m = _DBU_RE.search(text)
     if m and data.dbu_microns is None:
