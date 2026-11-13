@@ -165,6 +165,52 @@ def test_new_features():
     check(any("tt" in os.path.basename(c) for c in chosen), "one-corner prefers tt corner")
 
 
+# ----------------------------------------------------- memory boundary detection
+def test_memory_detection():
+    print("\n[TEST 3] memory detection (LEF BLOCK override + Liberty bus pins)")
+    from def2graph.lefparse import LefData, LefMacro
+    from def2graph.libparse import LibData, LibCell, LibPin, parse_liberty
+    from def2graph.model import CellLibrary
+
+    # 1) LEF CLASS BLOCK + a non-memory Liberty cell -> memory (LEF overrides lib)
+    lef = LefData(); lef.macros["BLK"] = LefMacro(name="BLK", cls="BLOCK")
+    lib = LibData(); c = LibCell(name="BLK")
+    c.pins["A"] = LibPin("A", direction="input")
+    c.pins["Y"] = LibPin("Y", direction="output")
+    lib.cells["BLK"] = c
+    check(CellLibrary.from_parsed(lef, lib).get("BLK").kind == "memory",
+          "LEF BLOCK + non-memory lib -> memory")
+
+    # 2) LEF BLOCK + sequential lib -> flop (not memory)
+    lef2 = LefData(); lef2.macros["SB"] = LefMacro(name="SB", cls="BLOCK")
+    lib2 = LibData(); lib2.cells["SB"] = LibCell(name="SB", is_ff=True)
+    check(CellLibrary.from_parsed(lef2, lib2).get("SB").kind == "flop",
+          "LEF BLOCK + sequential lib -> flop (not memory)")
+
+    # 3) LEF BLOCK with NO Liberty entry at all -> memory
+    lef3 = LefData(); lef3.macros["HM"] = LefMacro(name="HM", cls="BLOCK")
+    check(CellLibrary.from_parsed(lef3, LibData()).get("HM").kind == "memory",
+          "LEF BLOCK + no lib -> memory")
+
+    # 4) libparse: non-sequential cell with bus() pins -> is_memory (no memory group)
+    txt = ("library(t){ cell(RF){ area:10; bus(dout){ direction:output; } "
+           "pin(clk){ direction:input; } } }")
+    p = os.path.join(tempfile.mkdtemp(), "rf.lib")
+    with open(p, "w") as fh:
+        fh.write(txt)
+    d = parse_liberty(p)
+    check(d.cells["RF"].is_memory, "libparse: bus-pin non-seq cell -> is_memory")
+
+    # 5) plain CORE std cell stays combinational (no false memory)
+    lef4 = LefData(); lef4.macros["INV"] = LefMacro(name="INV", cls="CORE")
+    lib4 = LibData(); c4 = LibCell(name="INV")
+    c4.pins["A"] = LibPin("A", direction="input")
+    c4.pins["Y"] = LibPin("Y", direction="output")
+    lib4.cells["INV"] = c4
+    check(CellLibrary.from_parsed(lef4, lib4).get("INV").kind == "comb",
+          "CORE std cell stays comb")
+
+
 # ---------------------------------------------------------------- real designs
 def test_real(name, def_path, lef_paths, lib_paths, expect_memory=False):
     print(f"\n[TEST] real design: {name}")
@@ -224,6 +270,7 @@ def test_parse_smoke(name, lef_paths, lib_paths, want_flop=False, want_mem=False
 def main():
     test_fixture()
     test_new_features()
+    test_memory_detection()
 
     # picorv32 - sky130 (LibreLane/OpenROAD), real hardened design
     test_real(

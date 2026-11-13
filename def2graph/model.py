@@ -111,12 +111,16 @@ class CellLibrary:
                             existing.function = lp.function
 
             # ---- classify ----
+            is_block = lm is not None and (lm.cls in _MACRO_CLASSES)
+            is_seq = lc is not None and lc.is_sequential
             if lc is not None and lc.is_memory:
                 ci.kind = "memory"
-            elif lm is not None and (lm.cls in _MACRO_CLASSES) and (
-                    lc is None or lc.is_memory):
+            elif is_block and not is_seq:
+                # A hard macro (LEF CLASS BLOCK/RING) that is not a flip-flop is
+                # a memory/macro boundary -- trust LEF even if the Liberty cell
+                # says otherwise (or has no memory() group).
                 ci.kind = "memory"
-            elif lc is not None and lc.is_sequential:
+            elif is_seq:
                 ci.kind = "flop"
             elif ci.pins:
                 ci.kind = "comb"

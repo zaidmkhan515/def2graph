@@ -97,6 +97,8 @@ def parse_liberty(path: str, data: Optional[LibData] = None) -> LibData:
             if stack:
                 top = stack.pop()
                 if top == "cell":
+                    if cur_cell is not None:
+                        _finalize_cell(cur_cell)
                     cur_cell = None
                 elif top in _GROUP_PINLIKE:
                     cur_pin = None
@@ -220,6 +222,22 @@ def _apply_attr(name: str, vals: List[str], cell: Optional[LibCell],
             cell.area = float(val)
         except ValueError:
             pass
+    elif name in ("is_macro_cell", "is_macro"):
+        if val.lower() in ("true", "1", "yes"):
+            cell.is_memory = True
+
+
+def _finalize_cell(cell: LibCell) -> None:
+    """Infer memory for cells characterized without a `memory()` group.
+
+    A non-sequential cell with bus() pins (address/data buses) is a memory /
+    wide macro in Liberty -- standard cells never use bus pins -- so flag it as
+    a boundary. Sequential cells (incl. multi-bit ff_bank) are left as flops.
+    """
+    if cell.is_memory or cell.is_sequential:
+        return
+    if any(p.is_bus for p in cell.pins.values()):
+        cell.is_memory = True
 
 
 def parse_liberties(paths) -> LibData:

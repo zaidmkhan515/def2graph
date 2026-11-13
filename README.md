@@ -19,6 +19,13 @@ The parsers are keyword/stack driven (not column-based), so they tolerate style
 differences across **Nangate45, sky130, ASAP7, gf180mcu, fakeram**, and any DBU
 scale. Power/ground nets, pins, and `SPECIALNETS` are filtered out.
 
+**Boundary (cone-terminating) classification**, in priority order: a Liberty
+`memory()` group ⇒ **memory**; a LEF `CLASS BLOCK`/`RING` that is not a flop ⇒
+**memory** (this overrides the Liberty cell, so a hard macro without a `memory()`
+group is still a boundary); a Liberty `ff`/`latch` group ⇒ **flop**; otherwise
+**comb**. Liberty-side, a non-sequential cell with `bus()` pins is also treated
+as a memory (standard cells never use bus pins).
+
 ## Install deps
 
 ```
