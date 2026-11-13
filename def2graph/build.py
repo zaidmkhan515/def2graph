@@ -70,7 +70,10 @@ def build_from_files(def_path: str,
     cg.warnings = lef.warnings + lib_raw.warnings + cg.warnings
 
     say(f"[5/5] Exporting -> {outdir}  formats={formats}")
+    n_warn_before = len(cg.warnings)
     written, summary = export_all(cg, outdir, formats, include_subgraph_json)
+    for w in cg.warnings[n_warn_before:]:   # warnings raised during export
+        say(f"      WARN: {w}")
     dt = time.time() - t0
     say(f"      wrote {len(written)} file(s) in {dt:.1f}s")
     summary["elapsed_sec"] = round(dt, 2)

@@ -222,16 +222,28 @@ def export_all(cg: ConeGraph, outdir: str, formats, include_subgraph_json=True):
     written: List[str] = []
     fmts = set(formats)
 
+    # Each format degrades independently: a missing optional dependency skips
+    # just that output (with a warning) rather than aborting the whole export.
     if "parquet" in fmts:
-        written += export_parquet(cg, nodes, edges, outdir)
+        try:
+            written += export_parquet(cg, nodes, edges, outdir)
+        except ImportError:
+            cg.warnings.append(
+                "parquet export skipped: pandas/pyarrow not installed "
+                "(pip install pandas pyarrow)")
 
     need_nx = {"graphml", "gpickle"} & fmts
     if need_nx:
-        G = build_networkx(cg, nodes, edges)
-        if "gpickle" in fmts:
-            written.append(export_gpickle(G, outdir))
-        if "graphml" in fmts:
-            written.append(export_graphml(G, outdir))
+        try:
+            G = build_networkx(cg, nodes, edges)
+            if "gpickle" in fmts:
+                written.append(export_gpickle(G, outdir))
+            if "graphml" in fmts:
+                written.append(export_graphml(G, outdir))
+        except ImportError:
+            cg.warnings.append(
+                "graphml/gpickle export skipped: networkx not installed "
+                "(pip install networkx)")
 
     if "pyg" in fmts:
         try:
