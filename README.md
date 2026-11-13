@@ -37,9 +37,11 @@ python -m def2graph \
   --formats parquet gpickle graphml pyg json
 ```
 
-`--lef`/`--lib` are repeatable and accept a **file, a glob (`*`/`**`
-recursive), or a directory** (collected recursively). So a multi-corner MMMC
-lib dir works directly:
+`--lef`/`--lib` are repeatable, **accept multiple values per flag**, and take a
+**file, a glob (`*`/`**` recursive), or a directory** (collected recursively).
+So all of these work: `--lib a.lib b.lib`, `--lib *.lib` (unquoted, shell-
+expanded), `--lib 'libs/**/*.lib'` (quoted, tool-expanded), `--lib libs/mmmc`
+(directory). A multi-corner MMMC lib dir works directly:
 
 ```bash
 python -m def2graph --def design.def --lef libs/lef --lib libs/mmmc --out out/design

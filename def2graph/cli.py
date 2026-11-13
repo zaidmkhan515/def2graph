@@ -53,11 +53,13 @@ def main(argv=None) -> int:
         prog="def2graph",
         description="Convert DEF/LEF/Liberty into a port-bounded logic-cone graph.")
     ap.add_argument("--def", dest="def_path", required=True, help="DEF file")
-    ap.add_argument("--lef", dest="lef", action="append", default=[],
-                    help="LEF file, glob, or directory (repeatable; recursive)")
-    ap.add_argument("--lib", dest="lib", action="append", default=[],
-                    help="Liberty file, glob, or directory, e.g. libs/mmmc "
-                         "(repeatable; recursive; MMMC corners dedupe by cell)")
+    ap.add_argument("--lef", dest="lef", action="extend", nargs="+", default=[],
+                    help="LEF file(s), glob, or directory (repeatable; recursive). "
+                         "Accepts many values: --lef a.lef b.lef or --lef libs/lef")
+    ap.add_argument("--lib", dest="lib", action="extend", nargs="+", default=[],
+                    help="Liberty file(s), glob, or directory, e.g. libs/mmmc "
+                         "(repeatable; recursive; accepts many: --lib *.lib; "
+                         "MMMC corners dedupe by cell)")
     ap.add_argument("--out", dest="out", default="out", help="output directory")
     ap.add_argument("--formats", nargs="+", default=DEFAULT_FORMATS,
                     choices=["parquet", "gpickle", "graphml", "pyg", "json"],
