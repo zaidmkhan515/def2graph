@@ -1,5 +1,6 @@
 """End-to-end: parse DEF/LEF/LIB -> classify -> cone graph -> export."""
 from __future__ import annotations
+import os
 import time
 from typing import List, Optional
 
@@ -29,13 +30,24 @@ def build_from_files(def_path: str,
         if verbose:
             print(msg, flush=True)
 
+    # DEF is the one required input; fail clearly rather than with a traceback.
+    if not os.path.isfile(def_path):
+        raise FileNotFoundError(f"DEF file not found: {def_path}")
+
     say(f"[1/5] Parsing {len(lef_paths)} LEF file(s) ...")
     lef = parse_lefs(lef_paths)
+    for w in lef.warnings:
+        say(f"      WARN: {w}")
     say(f"      macros: {len(lef.macros)}  (dbu/micron={lef.dbu_microns})")
 
     say(f"[2/5] Parsing {len(lib_paths)} Liberty file(s) ...")
     lib_raw = parse_liberties(lib_paths)
+    for w in lib_raw.warnings:
+        say(f"      WARN: {w}")
     say(f"      lib cells: {len(lib_raw.cells)}")
+    if lib_paths and not lib_raw.cells:
+        say("      NOTE: no Liberty cells loaded -> flops cannot be detected "
+            "(cones will not stop at sequential elements).")
 
     say("[3/5] Merging cell library + classifying ...")
     celllib = CellLibrary.from_parsed(lef, lib_raw)
@@ -51,8 +63,11 @@ def build_from_files(def_path: str,
 
     cg = ConeGraph.from_def(defd, celllib, dbu=defd.dbu_microns)
     cg.trace_all_ports()
-    for w in cg.warnings:
+    for w in cg.warnings:            # ConeGraph's own warnings (e.g. unknown cells)
         say(f"      WARN: {w}")
+    # file-level parse warnings were already printed above; prepend them so they
+    # also appear in the exported summary.json
+    cg.warnings = lef.warnings + lib_raw.warnings + cg.warnings
 
     say(f"[5/5] Exporting -> {outdir}  formats={formats}")
     written, summary = export_all(cg, outdir, formats, include_subgraph_json)

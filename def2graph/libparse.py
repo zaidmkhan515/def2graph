@@ -10,6 +10,7 @@ It handles bus()/bundle() pins (memories) and both quoted and unquoted values,
 across Nangate45 / sky130 / ASAP7 / gf180 / fakeram styles.
 """
 from __future__ import annotations
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -47,6 +48,7 @@ class LibData:
         self.cap_unit: Optional[str] = None
         self.voltage_unit: Optional[str] = None
         self.libraries: List[str] = []
+        self.warnings: List[str] = []            # files skipped / failed to parse
 
 
 # Split into: quoted string | single punctuation | bareword
@@ -221,7 +223,16 @@ def _apply_attr(name: str, vals: List[str], cell: Optional[LibCell],
 
 
 def parse_liberties(paths) -> LibData:
+    """Parse many Liberty files, skipping any that are missing or unreadable."""
     data = LibData()
     for p in paths:
-        parse_liberty(p, data)
+        if not os.path.isfile(p):
+            data.warnings.append(f"Liberty not found, skipped: {p}")
+            continue
+        try:
+            parse_liberty(p, data)
+        except OSError as e:
+            data.warnings.append(f"Liberty unreadable, skipped: {p} ({e})")
+        except Exception as e:  # malformed file shouldn't abort the whole run
+            data.warnings.append(f"Liberty parse error, skipped: {p} ({e})")
     return data

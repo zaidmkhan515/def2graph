@@ -9,9 +9,10 @@ Works across vendor styles (Nangate45, ASAP7, sky130, gf180, fakeram) because it
 is driven by keywords and a small block stack rather than fixed column layouts.
 """
 from __future__ import annotations
+import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -38,6 +39,7 @@ class LefData:
         self.macros: Dict[str, LefMacro] = {}
         self.dbu_microns: Optional[int] = None   # LEF database units per micron
         self.manufacturing_grid: Optional[float] = None
+        self.warnings: List[str] = []            # files skipped / failed to parse
 
 
 _DBU_RE = re.compile(r"DATABASE\s+MICRONS\s+([0-9.]+)")
@@ -126,7 +128,16 @@ def parse_lef(path: str, data: Optional[LefData] = None) -> LefData:
 
 
 def parse_lefs(paths) -> LefData:
+    """Parse many LEF files, skipping any that are missing or unreadable."""
     data = LefData()
     for p in paths:
-        parse_lef(p, data)
+        if not os.path.isfile(p):
+            data.warnings.append(f"LEF not found, skipped: {p}")
+            continue
+        try:
+            parse_lef(p, data)
+        except OSError as e:
+            data.warnings.append(f"LEF unreadable, skipped: {p} ({e})")
+        except Exception as e:  # malformed file shouldn't abort the whole run
+            data.warnings.append(f"LEF parse error, skipped: {p} ({e})")
     return data
