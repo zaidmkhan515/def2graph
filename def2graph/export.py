@@ -234,7 +234,12 @@ def export_all(cg: ConeGraph, outdir: str, formats, include_subgraph_json=True):
             written.append(export_graphml(G, outdir))
 
     if "pyg" in fmts:
-        written.append(export_pyg(cg, nodes, edges, outdir))
+        try:
+            written.append(export_pyg(cg, nodes, edges, outdir))
+        except ImportError:
+            cg.warnings.append(
+                "pyg export skipped: torch not installed "
+                "(pip install torch; torch_geometric optional)")
 
     if "json" in fmts:
         written.append(export_cones_json(cg, outdir, include_subgraph_json))
